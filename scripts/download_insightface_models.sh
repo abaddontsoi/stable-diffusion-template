@@ -39,14 +39,47 @@ if [[ "${INSWAPPER_SIZE}" -lt 100000000 ]]; then
   exit 1
 fi
 
-if [[ ! -d "${BUFFALO_DIR}/buffalo_l" ]]; then
+if [[ ! -d "${BUFFALO_DIR}/buffalo_l" ]] || [[ ! -f "${BUFFALO_DIR}/buffalo_l/det_10g.onnx" ]]; then
   download "${BUFFALO_URL}" "${BUFFALO_ZIP}"
-  unzip -o "${BUFFALO_ZIP}" -d "${BUFFALO_DIR}"
+  # Official zip unpacks ONNX files flat (no buffalo_l/ folder). Normalize layout.
+  TMP_BUFFALO="$(mktemp -d)"
+  unzip -o "${BUFFALO_ZIP}" -d "${TMP_BUFFALO}"
   rm -f "${BUFFALO_ZIP}"
-  # Some archives unpack as buffalo_l/* ; others as models/buffalo_l/*
-  if [[ ! -d "${BUFFALO_DIR}/buffalo_l" ]] && [[ -d "${BUFFALO_DIR}/models/buffalo_l" ]]; then
-    mv "${BUFFALO_DIR}/models/buffalo_l" "${BUFFALO_DIR}/buffalo_l"
+
+  mkdir -p "${BUFFALO_DIR}/buffalo_l"
+
+  # Case A: zip contains buffalo_l/*
+  if [[ -d "${TMP_BUFFALO}/buffalo_l" ]]; then
+    cp -a "${TMP_BUFFALO}/buffalo_l/." "${BUFFALO_DIR}/buffalo_l/"
+  # Case B: zip contains models/buffalo_l/*
+  elif [[ -d "${TMP_BUFFALO}/models/buffalo_l" ]]; then
+    cp -a "${TMP_BUFFALO}/models/buffalo_l/." "${BUFFALO_DIR}/buffalo_l/"
+  # Case C: flat *.onnx at zip root (actual GitHub release layout)
+  else
+    shopt -s nullglob
+    onnx_files=("${TMP_BUFFALO}"/*.onnx)
+    if [[ ${#onnx_files[@]} -eq 0 ]]; then
+      # one more nested level sometimes
+      onnx_files=("${TMP_BUFFALO}"/*/*.onnx)
+    fi
+    if [[ ${#onnx_files[@]} -eq 0 ]]; then
+      echo "ERROR: no .onnx files found in buffalo_l.zip" >&2
+      find "${TMP_BUFFALO}" -maxdepth 3 -type f | head -50 >&2
+      rm -rf "${TMP_BUFFALO}"
+      exit 1
+    fi
+    cp -a "${onnx_files[@]}" "${BUFFALO_DIR}/buffalo_l/"
+    shopt -u nullglob
   fi
+
+  # Cleanup accidental flat extracts into models/ from older runs
+  for f in det_10g.onnx w600k_r50.onnx 2d106det.onnx genderage.onnx 1k3d68.onnx; do
+    if [[ -f "${BUFFALO_DIR}/${f}" ]] && [[ -f "${BUFFALO_DIR}/buffalo_l/${f}" ]]; then
+      rm -f "${BUFFALO_DIR}/${f}"
+    fi
+  done
+
+  rm -rf "${TMP_BUFFALO}"
 else
   echo "buffalo_l already present"
 fi

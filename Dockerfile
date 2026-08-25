@@ -5,6 +5,7 @@
 ARG BASE_IMAGE=runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 FROM ${BASE_IMAGE}
 
+# Stability-AI/stablediffusion is private/removed; A1111 uses STABLE_DIFFUSION_REPO
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -12,7 +13,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     INSIGHTFACE_HOME=/root/.insightface \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
-    ORT_CUDA12_INDEX=https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
+    ORT_CUDA12_INDEX=https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/ \
+    STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git
 
 # OpenCV / build deps (insightface Cython + mediapipe runtime libs)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -28,18 +30,31 @@ ARG REACTOR_REF=main
 ARG ADETAILER_REPO=https://github.com/Bing-su/adetailer.git
 ARG ADETAILER_REF=main
 
-# --- Automatic1111 WebUI ---
+# --- Automatic1111 WebUI (https://github.com/AUTOMATIC1111/stable-diffusion-webui) ---
+# CLIP needs pkg_resources (removed in setuptools>=81). A1111 itself pins
+# setuptools==69.5.1 in launch_utils / requirements — match that exactly.
+# Stability-AI/stablediffusion is gone → STABLE_DIFFUSION_REPO mirror (w-e-w).
+ARG CLIP_PACKAGE=https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip
+ARG WEBUI_REPO=https://github.com/AUTOMATIC1111/stable-diffusion-webui.git
 RUN git clone --depth 1 --branch ${WEBUI_VERSION} \
-        https://github.com/AUTOMATIC1111/stable-diffusion-webui.git ${WEBUI_ROOT} \
+        ${WEBUI_REPO} ${WEBUI_ROOT} \
     && cd ${WEBUI_ROOT} \
     && python -m venv venv \
     && . venv/bin/activate \
-    && pip install -U pip setuptools wheel \
+    && pip install "pip==25.2" "setuptools==69.5.1" "wheel==0.45.1" \
+    && printf 'setuptools==69.5.1\npip==25.2\n' > /etc/pip-constraints-a1111.txt \
+    && export PIP_CONSTRAINT=/etc/pip-constraints-a1111.txt \
+    && export STABLE_DIFFUSION_REPO="${STABLE_DIFFUSION_REPO}" \
     && pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu124 \
     && pip install -r requirements_versions.txt \
     && pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu124 \
+    && pip install --no-build-isolation "${CLIP_PACKAGE}" \
     && python launch.py --skip-torch-cuda-test --skip-python-version-check --exit \
     && pip cache purge
+
+ENV PIP_CONSTRAINT=/etc/pip-constraints-a1111.txt \
+    CLIP_PACKAGE=https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip \
+    STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git
 
 # --- Extensions: ReActor + ADetailer ---
 RUN cd ${WEBUI_ROOT}/extensions \

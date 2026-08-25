@@ -13,13 +13,16 @@ Docker template for [RunPod](https://www.runpod.io/) with **AUTOMATIC1111 WebUI*
 | ADetailer / `ultralytics` missing or wrong | Pin `ultralytics==8.3.75` (+ mediapipe, rich) |
 | Missing YOLO detectors | Bake `face/hand/person` `.pt` from `Bingsu/adetailer` |
 | Torch `weights_only` YOLO load issues | `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` |
+| CLIP install fails (`pkg_resources`) | Pin `setuptools==69.5.1` (A1111’s version) + pre-install CLIP with `--no-build-isolation` |
+| `Couldn't clone Stable Diffusion` (Stability-AI private) | `STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git` |
 
 ## Stack
 
+- **WebUI:** [AUTOMATIC1111/stable-diffusion-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui) `v1.10.1`
 - Base: `runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04`
-- WebUI: AUTOMATIC1111 `v1.10.1`
 - [Gourieff/sd-webui-reactor](https://codeberg.org/Gourieff/sd-webui-reactor)
 - [Bing-su/adetailer](https://github.com/Bing-su/adetailer)
+- SD code mirror: [w-e-w/stablediffusion](https://github.com/w-e-w/stablediffusion) (via `STABLE_DIFFUSION_REPO`; upstream Stability-AI repo is unavailable)
 - `insightface==0.7.3`, `onnxruntime-gpu==1.17.1`, `ultralytics==8.3.75`
 
 > InsightFace models are for **non-commercial research** unless you have a separate license.
