@@ -41,8 +41,8 @@ RUN git clone --depth 1 --branch ${WEBUI_VERSION} \
     && cd ${WEBUI_ROOT} \
     && python -m venv venv \
     && . venv/bin/activate \
-    && pip install "pip==25.2" "setuptools==69.5.1" "wheel==0.45.1" \
-    && printf 'setuptools==69.5.1\npip==25.2\n' > /etc/pip-constraints-a1111.txt \
+    && pip install "pip==25.2" "setuptools==69.5.1" "wheel==0.45.1" "numpy==1.26.4" \
+    && printf 'setuptools==69.5.1\npip==25.2\nnumpy==1.26.4\n' > /etc/pip-constraints-a1111.txt \
     && export PIP_CONSTRAINT=/etc/pip-constraints-a1111.txt \
     && export STABLE_DIFFUSION_REPO="${STABLE_DIFFUSION_REPO}" \
     && pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu124 \
@@ -90,12 +90,16 @@ RUN . ${WEBUI_ROOT}/venv/bin/activate \
         "py-cpuinfo" \
     && pip cache purge
 
-# --- FINAL: re-assert onnxruntime-gpu (must be last pip step) ---
+# --- FINAL: pin numpy<2 + onnxruntime-gpu (must be last pip step) ---
+# ultralytics/mediapipe often pull numpy 2.x → ORT 1.17.1 then dies with:
+#   AttributeError: _ARRAY_API not found
 RUN . ${WEBUI_ROOT}/venv/bin/activate \
+    && pip install --force-reinstall --no-deps "numpy==1.26.4" \
     && pip uninstall -y onnxruntime onnxruntime-gpu 2>/dev/null || true \
     && pip install onnxruntime-gpu==1.17.1 --extra-index-url ${ORT_CUDA12_INDEX} \
     && pip uninstall -y onnxruntime 2>/dev/null || true \
     && pip install onnxruntime-gpu==1.17.1 --extra-index-url ${ORT_CUDA12_INDEX} \
+    && python -c "import numpy; assert numpy.__version__.startswith('1.26'), numpy.__version__; import onnxruntime as ort; print('numpy', numpy.__version__, 'providers', ort.get_available_providers())" \
     && pip cache purge
 
 # Force ReActor onto CUDA

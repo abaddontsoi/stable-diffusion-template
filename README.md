@@ -15,6 +15,7 @@ Docker template for [RunPod](https://www.runpod.io/) with **AUTOMATIC1111 WebUI*
 | Torch `weights_only` YOLO load issues | `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` |
 | CLIP install fails (`pkg_resources`) | Pin `setuptools==69.5.1` (A1111’s version) + pre-install CLIP with `--no-build-isolation` |
 | `Couldn't clone Stable Diffusion` (Stability-AI private) | `STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git` |
+| ORT `_ARRAY_API not found` | Pin `numpy==1.26.4` (ultralytics often pulls numpy 2.x) |
 
 ## Stack
 

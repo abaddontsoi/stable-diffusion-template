@@ -10,6 +10,17 @@ INSIGHTFACE_HOME = os.environ.get("INSIGHTFACE_HOME", "/root/.insightface")
 
 
 def main() -> None:
+    import numpy
+
+    print(f"numpy {numpy.__version__}")
+    if not numpy.__version__.startswith("1."):
+        print(
+            f"ERROR: numpy {numpy.__version__} is incompatible with onnxruntime-gpu==1.17.1 "
+            "(expect numpy 1.26.x; numpy 2.x → AttributeError: _ARRAY_API not found)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     import insightface
     import onnxruntime as ort
 

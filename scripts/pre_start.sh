@@ -58,12 +58,13 @@ fi
 
 echo "CUDA" > "${WEBUI_ROOT}/extensions/sd-webui-reactor/last_device.txt"
 
-# Repair ultralytics + onnxruntime if something (extension install.py) drifted versions
+# Repair numpy + ultralytics + onnxruntime if something drifted versions
 python - <<'PY'
 import subprocess, sys
 
 ORT_IDX = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/"
 ULTRA_PIN = "ultralytics==8.3.75"
+NUMPY_PIN = "numpy==1.26.4"
 
 def pip_list() -> str:
     return subprocess.check_output([sys.executable, "-m", "pip", "list"], text=True)
@@ -76,24 +77,40 @@ def pkg_line(name: str, listing: str) -> str | None:
     return None
 
 listing = pip_list()
-ultra = pkg_line("ultralytics", listing)
+
+# numpy 2.x breaks onnxruntime-gpu 1.17.1 (_ARRAY_API not found)
+np_line = pkg_line("numpy", listing)
+print("[pre_start]", np_line or "numpy MISSING")
+need_numpy = True
+if np_line:
+    parts = np_line.split()
+    need_numpy = len(parts) < 2 or not parts[1].startswith("1.26.")
+if need_numpy:
+    print(f"[pre_start] Reinstalling {NUMPY_PIN} ...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--force-reinstall", "--no-deps", NUMPY_PIN])
+
+ultra = pkg_line("ultralytics", pip_list())
 print("[pre_start]", ultra or "ultralytics MISSING")
 
 need_ultra = True
 if ultra:
-    # Expect exactly 8.3.75
     parts = ultra.split()
     need_ultra = len(parts) < 2 or parts[1] != "8.3.75"
 
 if need_ultra:
     print(f"[pre_start] Reinstalling {ULTRA_PIN} ...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", ULTRA_PIN, "mediapipe>=0.10.13", "rich>=13", "pydantic<3"])
+    # ultralytics may bump numpy again
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--force-reinstall", "--no-deps", NUMPY_PIN])
 
 # ORT check (ultralytics / adetailer install often pulls CPU onnxruntime)
+ort_ok = False
+providers = []
 try:
     import onnxruntime as ort
     providers = ort.get_available_providers()
     print("[pre_start] onnxruntime providers:", providers)
+    ort_ok = True
 except Exception as e:
     print("[pre_start] onnxruntime import failed:", e)
     providers = []
@@ -103,7 +120,7 @@ has_cpu = bool(pkg_line("onnxruntime", listing))
 has_gpu = bool(pkg_line("onnxruntime-gpu", listing))
 print(f"[pre_start] pip onnxruntime={has_cpu} onnxruntime-gpu={has_gpu}")
 
-need_ort = ("CUDAExecutionProvider" not in providers) or has_cpu or not has_gpu
+need_ort = (not ort_ok) or ("CUDAExecutionProvider" not in providers) or has_cpu or not has_gpu
 if need_ort:
     print("[pre_start] Reinstalling onnxruntime-gpu==1.17.1 (CUDA 12 index)...")
     subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-y", "onnxruntime", "onnxruntime-gpu"])
@@ -116,9 +133,10 @@ if need_ort:
     importlib.reload(ort2)
     print("[pre_start] providers after fix:", ort2.get_available_providers())
 
-# Smoke-import YOLO
 from ultralytics import YOLO  # noqa: F401
 print("[pre_start] ultralytics.YOLO OK")
+import insightface  # noqa: F401
+print("[pre_start] insightface OK", insightface.__version__)
 PY
 
 echo "[pre_start] done"
