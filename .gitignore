@@ -1,0 +1,10 @@
+# Ignore local Python scaffold leftovers / large artifacts
+.venv/
+__pycache__/
+*.pyc
+.env
+*.onnx
+buffalo_l/
+dist/
+*.egg-info/
+.DS_Store

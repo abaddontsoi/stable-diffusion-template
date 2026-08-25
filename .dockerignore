@@ -1,0 +1,11 @@
+.git
+.gitignore
+README.md
+*.md
+.DS_Store
+.venv
+__pycache__
+*.pyc
+*.onnx
+buffalo_l/
+src/
