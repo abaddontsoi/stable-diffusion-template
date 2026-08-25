@@ -47,7 +47,7 @@ RUN git clone --depth 1 --branch ${WEBUI_VERSION} \
     && printf 'setuptools==69.5.1\npip==25.2\nnumpy==1.26.4\n' > /etc/pip-constraints-a1111.txt \
     && export PIP_CONSTRAINT=/etc/pip-constraints-a1111.txt \
     && export STABLE_DIFFUSION_REPO="${STABLE_DIFFUSION_REPO}" \
-    && sed -i 's/^numpy==1\.26\.2$/numpy==1.26.4/' requirements_versions.txt \
+    && sed -i 's/numpy==1\.26\.2/numpy==1.26.4/g' requirements_versions.txt \
     && pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu124 \
     && pip install -r requirements_versions.txt \
     && pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu124 \
