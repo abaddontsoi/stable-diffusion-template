@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     WEBUI_ROOT=/stable-diffusion-webui \
-    INSIGHTFACE_HOME=/root/.insightface \
+
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
     ORT_CUDA12_INDEX=https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/ \
@@ -57,7 +57,8 @@ RUN git clone --depth 1 --branch ${WEBUI_VERSION} \
 
 ENV PIP_CONSTRAINT=/etc/pip-constraints-a1111.txt \
     CLIP_PACKAGE=https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip \
-    STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git
+    STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git \
+    INSIGHTFACE_HOME=/home/sduser/.insightface
 
 # --- Extensions: ReActor + ADetailer ---
 RUN cd ${WEBUI_ROOT}/extensions \
@@ -126,6 +127,9 @@ RUN . ${WEBUI_ROOT}/venv/bin/activate \
 COPY a1111/webui-user.sh ${WEBUI_ROOT}/webui-user.sh
 COPY --chmod=755 scripts/start.sh /start.sh
 COPY --chmod=755 scripts/pre_start.sh /pre_start.sh
+
+RUN useradd -m -u 1000 sduser && chown -R sduser:sduser ${WEBUI_ROOT} /start.sh /pre_start.sh /usr/local/bin/download_insightface_models.sh /usr/local/bin/download_adetailer_models.sh
+USER sduser
 
 WORKDIR ${WEBUI_ROOT}
 EXPOSE 3000
