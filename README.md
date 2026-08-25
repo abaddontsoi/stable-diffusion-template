@@ -16,6 +16,7 @@ Docker template for [RunPod](https://www.runpod.io/) with **AUTOMATIC1111 WebUI*
 | CLIP install fails (`pkg_resources`) | Pin `setuptools==69.5.1` (A1111’s version) + pre-install CLIP with `--no-build-isolation` |
 | `Couldn't clone Stable Diffusion` (Stability-AI private) | `STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git` |
 | ORT `_ARRAY_API not found` | Pin `numpy==1.26.4` (ultralytics often pulls numpy 2.x) |
+| `ResolutionImpossible` numpy 1.26.2 vs constraint 1.26.4 | Rewrite A1111 `requirements_versions.txt` pin to `1.26.4` before `pip install` |
 
 ## Stack
 

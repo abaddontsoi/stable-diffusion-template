@@ -34,6 +34,8 @@ ARG ADETAILER_REF=main
 # CLIP needs pkg_resources (removed in setuptools>=81). A1111 itself pins
 # setuptools==69.5.1 in launch_utils / requirements — match that exactly.
 # Stability-AI/stablediffusion is gone → STABLE_DIFFUSION_REPO mirror (w-e-w).
+# A1111 requirements_versions.txt pins numpy==1.26.2; our PIP_CONSTRAINT is
+# numpy==1.26.4 (ORT) — rewrite the pin before pip install or ResolutionImpossible.
 ARG CLIP_PACKAGE=https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip
 ARG WEBUI_REPO=https://github.com/AUTOMATIC1111/stable-diffusion-webui.git
 RUN git clone --depth 1 --branch ${WEBUI_VERSION} \
@@ -45,6 +47,7 @@ RUN git clone --depth 1 --branch ${WEBUI_VERSION} \
     && printf 'setuptools==69.5.1\npip==25.2\nnumpy==1.26.4\n' > /etc/pip-constraints-a1111.txt \
     && export PIP_CONSTRAINT=/etc/pip-constraints-a1111.txt \
     && export STABLE_DIFFUSION_REPO="${STABLE_DIFFUSION_REPO}" \
+    && sed -i 's/^numpy==1\.26\.2$/numpy==1.26.4/' requirements_versions.txt \
     && pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu124 \
     && pip install -r requirements_versions.txt \
     && pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu124 \
