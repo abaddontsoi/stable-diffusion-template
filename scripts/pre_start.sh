@@ -1,11 +1,45 @@
 #!/usr/bin/env bash
-# Runs before WebUI: persist models, repair ORT/ultralytics, refill missing assets.
+# Runs before WebUI: persist models, heal venv/CLIP, repair ORT/ultralytics, refill assets.
 set -euo pipefail
 
 WEBUI_ROOT="${WEBUI_ROOT:-/stable-diffusion-webui}"
 WORKSPACE="${WORKSPACE:-/workspace}"
 VENV="${WEBUI_ROOT}/venv"
+# Never use /workspace/venv — that path is ignored on purpose
 ORT_CUDA12_INDEX="${ORT_CUDA12_INDEX:-https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/}"
+INSIGHTFACE_HOME="${INSIGHTFACE_HOME:-/opt/insightface}"
+CLIP_PACKAGE="${CLIP_PACKAGE:-https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip}"
+export PIP_NO_BUILD_ISOLATION="${PIP_NO_BUILD_ISOLATION:-1}"
+export PIP_USE_PEP517="${PIP_USE_PEP517:-0}"
+
+if [[ ! -x "${VENV}/bin/python" ]]; then
+  echo "[pre_start] ERROR: missing ${VENV}/bin/python — image venv required" >&2
+  exit 1
+fi
+
+# Soft-heal pip / setuptools / packaging / CLIP (avoid A1111 PEP517 zip install crash)
+heal_clip_stack() {
+  local py="${VENV}/bin/python"
+  if ! "${py}" -m pip --version >/dev/null 2>&1; then
+    echo "[pre_start] pip broken — ensurepip..."
+    "${py}" -m ensurepip --upgrade || true
+  fi
+  "${py}" -m pip install -U "pip==25.2" "setuptools==69.5.1" "wheel==0.45.1" "packaging" || true
+
+  if ! "${py}" -c "import pkg_resources" >/dev/null 2>&1; then
+    echo "[pre_start] pkg_resources missing — reinstalling setuptools==69.5.1..."
+    "${py}" -m pip install --force-reinstall "setuptools==69.5.1"
+  fi
+
+  if ! "${py}" -c "import clip" >/dev/null 2>&1; then
+    echo "[pre_start] clip missing — installing with --no-build-isolation --no-use-pep517..."
+    "${py}" -m pip install --no-build-isolation --no-use-pep517 "${CLIP_PACKAGE}"
+  fi
+
+  "${py}" -c "import pkg_resources, clip, packaging; print('[pre_start] clip/pkg_resources/packaging OK')"
+}
+
+heal_clip_stack
 
 source "${VENV}/bin/activate"
 
@@ -44,9 +78,13 @@ if [[ -d "${WORKSPACE}" ]]; then
   link_dir "${WEBUI_ROOT}/outputs" "${WORKSPACE}/outputs"
 fi
 
-# Re-download assets if wiped
-if [[ ! -f "${WEBUI_ROOT}/models/insightface/inswapper_128.onnx" ]] \
-  || [[ ! -f /root/.insightface/models/buffalo_l/det_10g.onnx ]]; then
+# Re-download assets if wiped (support legacy /root/.insightface path)
+BUFFALO_OK=0
+if [[ -f "${INSIGHTFACE_HOME}/models/buffalo_l/det_10g.onnx" ]] \
+  || [[ -f /root/.insightface/models/buffalo_l/det_10g.onnx ]]; then
+  BUFFALO_OK=1
+fi
+if [[ ! -f "${WEBUI_ROOT}/models/insightface/inswapper_128.onnx" ]] || [[ "${BUFFALO_OK}" -eq 0 ]]; then
   echo "[pre_start] InsightFace models missing — downloading..."
   /usr/local/bin/download_insightface_models.sh || true
 fi

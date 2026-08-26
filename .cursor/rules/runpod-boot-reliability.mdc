@@ -1,0 +1,39 @@
+---
+description: Runpod A1111 boot — non-root, CLIP/pkg_resources, repo venv, nginx after upstream
+globs: Dockerfile,scripts/**/*.sh,a1111/**,**/nginx*.conf,README.md
+alwaysApply: true
+---
+
+# Runpod Boot Reliability (A1111)
+
+Template must boot on Runpod with no manual steps. Runtime is **root** by default; `/workspace` may persist and hold stale state.
+
+## Hard requirements
+
+1. **Never launch A1111 as root** — user `runpod` + `gosu`/`runuser` before WebUI (and prefer Jupyter as non-root). nginx/ssh may stay root.
+2. **Venv path** — always `$WEBUI_ROOT/venv` (`WEBUI_ROOT=/stable-diffusion-webui`). **Never** `/workspace/venv`.
+3. **Validate before launch** — in the A1111 venv:
+   - `python -m pip --version`
+   - `python -c "import packaging, pkg_resources"`
+   - `python -c "import clip"`
+   - On soft failure: reinstall `pip setuptools==69.5.1 wheel packaging` + CLIP (below). Do not casually `rm -rf` a baked torch venv.
+4. **CLIP install** — never rely on A1111’s runtime PEP517 zip install. Always:
+   ```bash
+   pip install --no-build-isolation --no-use-pep517 "$CLIP_PACKAGE"
+   ```
+   Optional: `PIP_NO_BUILD_ISOLATION=1` `PIP_USE_PEP517=0` before `launch.py`.
+5. **Bind** — `--listen --port 3000`.
+6. **nginx after upstream** — start A1111 first; poll TCP/`curl` on `:3000`; then nginx `:3001`. Avoid 502 while Runpod waits.
+
+## Failure modes (do not reintroduce)
+
+| Symptom | Cause |
+|---|---|
+| Waiting for service; `:3001` → 502 | nginx up, A1111 never bound `:3000` |
+| `must not be launched as root` | WebUI started as root |
+| `No module named pip` / `packaging` | broken/shared `/workspace/venv` or missing bootstrap |
+| `No module named pkg_resources` / `Couldn't install clip` | PEP517 isolated build missing setuptools |
+
+## Docs
+
+`/workspace` persists models/outputs (symlinks). Venv stays under `$WEBUI_ROOT`. Reset deps: repair via `pre_start` CLIP/setuptools heal; nuclear = rebuild image or delete `$WEBUI_ROOT/venv` (costly).

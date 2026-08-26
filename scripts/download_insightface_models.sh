@@ -3,7 +3,7 @@
 set -euo pipefail
 
 WEBUI_ROOT="${WEBUI_ROOT:-/stable-diffusion-webui}"
-INSIGHTFACE_HOME="${INSIGHTFACE_HOME:-/root/.insightface}"
+INSIGHTFACE_HOME="${INSIGHTFACE_HOME:-/opt/insightface}"
 
 SWAP_DIR="${WEBUI_ROOT}/models/insightface"
 BUFFALO_DIR="${INSIGHTFACE_HOME}/models"

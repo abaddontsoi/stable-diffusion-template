@@ -6,7 +6,7 @@ import os
 import sys
 
 WEBUI_ROOT = os.environ.get("WEBUI_ROOT", "/stable-diffusion-webui")
-INSIGHTFACE_HOME = os.environ.get("INSIGHTFACE_HOME", "/root/.insightface")
+INSIGHTFACE_HOME = os.environ.get("INSIGHTFACE_HOME", "/opt/insightface")
 
 
 def main() -> None:

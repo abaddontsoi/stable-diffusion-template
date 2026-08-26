@@ -16,15 +16,20 @@ ENV DEBIAN_FRONTEND=noninteractive \
     ORT_CUDA12_INDEX=https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/ \
     STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git
 
-# OpenCV / build deps + RunPod Connect services (nginx proxy, SSH)
+# OpenCV / build deps + RunPod Connect (nginx, SSH) + gosu for non-root A1111
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git wget curl unzip \
         libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
         libxcb1 libgtk-3-0 \
-        build-essential python3-dev \
+        build-essential python3-dev python3-venv \
         nginx openssh-server \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/run/sshd /run/nginx
+    && mkdir -p /var/run/sshd /run/nginx /opt/insightface \
+    && useradd -m -u 1000 -s /bin/bash runpod \
+    && curl -fsSL -o /usr/local/bin/gosu \
+         "https://github.com/tianon/gosu/releases/download/1.17/gosu-amd64" \
+    && chmod +x /usr/local/bin/gosu \
+    && gosu nobody true
 
 ARG WEBUI_VERSION=v1.10.1
 ARG REACTOR_REPO=https://codeberg.org/Gourieff/sd-webui-reactor.git
@@ -53,14 +58,16 @@ RUN git clone --depth 1 --branch ${WEBUI_VERSION} \
     && pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu124 \
     && pip install -r requirements_versions.txt \
     && pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu124 \
-    && pip install --no-build-isolation "${CLIP_PACKAGE}" \
+    && pip install --no-build-isolation --no-use-pep517 "${CLIP_PACKAGE}" \
+    && python -c "import pkg_resources, clip; print('clip+pkg_resources OK')" \
     && python launch.py --skip-torch-cuda-test --skip-python-version-check --exit \
+    && python -c "import pkg_resources, clip; print('clip still OK after launch.py')" \
     && pip cache purge
 
 ENV PIP_CONSTRAINT=/etc/pip-constraints-a1111.txt \
     CLIP_PACKAGE=https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip \
     STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git \
-    INSIGHTFACE_HOME=/root/.insightface
+    INSIGHTFACE_HOME=/opt/insightface
 
 # --- Extensions: ReActor + ADetailer ---
 RUN cd ${WEBUI_ROOT}/extensions \
@@ -131,12 +138,15 @@ COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY --chmod=755 scripts/start.sh /start.sh
 COPY --chmod=755 scripts/pre_start.sh /pre_start.sh
 
-# Ensure jupyter is available for RunPod Connect :8888
+# Jupyter for RunPod Connect :8888; ownership for non-root A1111
 RUN pip install --no-cache-dir jupyterlab \
-    && mkdir -p /var/log/nginx /workspace \
-    && (rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true)
+    && mkdir -p /var/log/nginx /workspace /opt/insightface /var/log \
+    && (rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true) \
+    && chown -R runpod:runpod ${WEBUI_ROOT} /workspace /opt/insightface \
+    && touch /var/log/a1111.log /jupyter.log \
+    && chown runpod:runpod /var/log/a1111.log /jupyter.log
 
-# Run as root so nginx / ssh / jupyter match RunPod official templates
+# Entrypoint stays root (nginx/ssh); start.sh drops to runpod for A1111
 WORKDIR ${WEBUI_ROOT}
 EXPOSE 22 3000 3001 8888
 

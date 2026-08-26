@@ -7,13 +7,16 @@ Docker template for [RunPod](https://www.runpod.io/) with **AUTOMATIC1111 WebUI*
 | Problem | Fix in this image |
 | --- | --- |
 | Missing `inswapper_128.onnx` | Baked into `models/insightface/` |
-| Missing `buffalo_l` | Baked into `/root/.insightface/models/buffalo_l/` |
+| Missing `buffalo_l` | Baked into `/opt/insightface/models/buffalo_l/` |
 | CPU `onnxruntime` shadows GPU | Only `onnxruntime-gpu==1.17.1` (CUDA 12 index); re-pinned **after** ultralytics |
 | ReActor stuck on CPU | `last_device.txt` → `CUDA`; checked every boot |
 | ADetailer / `ultralytics` missing or wrong | Pin `ultralytics==8.3.75` (+ mediapipe, rich) |
 | Missing YOLO detectors | Bake `face/hand/person` `.pt` from `Bingsu/adetailer` |
 | Torch `weights_only` YOLO load issues | `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` |
-| CLIP install fails (`pkg_resources`) | Pin `setuptools==69.5.1` (A1111’s version) + pre-install CLIP with `--no-build-isolation` |
+| CLIP install fails (`pkg_resources` / PEP517) | Pin `setuptools==69.5.1` + pre-install CLIP with `--no-build-isolation --no-use-pep517`; `pre_start` re-heals |
+| A1111 aborts as root | Entrypoint drops to user `runpod` via `gosu` before `webui.sh` |
+| Connect stuck / `:3001` → 502 | Start A1111 first, wait for `:3000`, then start nginx |
+| Broken shared `/workspace/venv` | Venv is always `/stable-diffusion-webui/venv` (never `/workspace/venv`) |
 | `Couldn't clone Stable Diffusion` (Stability-AI private) | `STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git` |
 | ORT `_ARRAY_API not found` | Pin `numpy==1.26.4` (ultralytics often pulls numpy 2.x) |
 | `ResolutionImpossible` numpy 1.26.2 vs constraint 1.26.4 | Rewrite A1111 `requirements_versions.txt` pin to `1.26.4` before `pip install` |
@@ -111,15 +114,23 @@ Then open `http://localhost:3000` (maps to container nginx `:3001`).
 ```bash
 source /stable-diffusion-webui/venv/bin/activate
 python - <<'PY'
+import pkg_resources, clip, packaging
 import insightface, onnxruntime as ort
 from ultralytics import YOLO
+print("clip/pkg_resources/packaging OK")
 print("insightface", insightface.__version__)
 print("providers", ort.get_available_providers())
 print("ultralytics OK", YOLO)
 assert "CUDAExecutionProvider" in ort.get_available_providers()
 PY
 
+# WebUI should be non-root; nginx only after upstream
+grep -i "must not be launched as root" /var/log/a1111.log || echo "no root abort"
+curl -I http://127.0.0.1:3001/   # expect 200/302, not 502
+ps -o user,args -C python | head
+
 ls -lh /stable-diffusion-webui/models/insightface/inswapper_128.onnx
+ls /opt/insightface/models/buffalo_l/ || ls /root/.insightface/models/buffalo_l/
 ls /stable-diffusion-webui/models/adetailer/
 cat /stable-diffusion-webui/extensions/sd-webui-reactor/last_device.txt
 ```
@@ -139,8 +150,19 @@ scripts/
   start.sh                  # nginx + jupyter + webui + sleep infinity
 ```
 
+## Persistence (`/workspace`)
+
+Network Volume at `/workspace` may persist across pods. This template:
+
+- Symlinks **models / outputs** under `/workspace` (see `pre_start.sh`)
+- Keeps the Python **venv** at `/stable-diffusion-webui/venv` (image-local) — **not** `/workspace/venv`
+- On boot, `pre_start.sh` soft-heals `pip` / `setuptools` / `packaging` / `clip` if imports fail
+
+If deps are badly corrupted: rebuild the image, or (slow) delete `/stable-diffusion-webui/venv` and reinstall from a known-good environment. Prefer image rebuild.
+
 ## Notes
 
 - **Install order matters:** ultralytics can pull CPU `onnxruntime`; the image always reinstalls `onnxruntime-gpu` last, and `pre_start.sh` repairs it again on boot.
 - Do not manually `pip install onnxruntime` (CPU). Prefer leaving version pins alone.
 - With a Network Volume, `models/insightface` and `models/adetailer` are seeded then symlinked under `/workspace`.
+- Entrypoint runs as root for nginx/SSH, but A1111 (and Jupyter when possible) run as `runpod`.
