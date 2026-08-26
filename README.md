@@ -101,6 +101,8 @@ After deploy, open **Connect** → click **HTTP Service** (3001) for WebUI, or *
 | `DISABLE_AUTOLAUNCH` | Set `1` to skip auto-starting WebUI |
 | `PUBLIC_KEY` | Injected by RunPod for SSH |
 
+WebUI stdout/stderr is written to `/var/log/a1111.log` and **streamed to the container log** (RunPod **Logs** tab) via `tail -F`, so generation progress (tqdm, ReActor, etc.) is visible without SSH.
+
 ### Local test (similar port map)
 
 ```bash
@@ -128,6 +130,7 @@ PY
 
 # WebUI should be non-root; nginx only after upstream
 grep -i "must not be launched as root" /var/log/a1111.log || echo "no root abort"
+tail -n 50 /var/log/a1111.log   # same stream as RunPod Logs tab
 curl -I http://127.0.0.1:3001/   # expect 200/302, not 502
 ps -o user,args -C python | head
 

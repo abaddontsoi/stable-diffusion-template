@@ -185,6 +185,7 @@ start_webui() {
   # shellcheck disable=SC2086
   nohup "${launcher[@]}" "
     cd '${WEBUI_ROOT}'
+    export PYTHONUNBUFFERED=1
     export PIP_CONSTRAINT='${PIP_CONSTRAINT}'
     export PIP_NO_BUILD_ISOLATION='${PIP_NO_BUILD_ISOLATION}'
     export PIP_USE_PEP517='${PIP_USE_PEP517}'
@@ -200,8 +201,8 @@ start_webui() {
       --api \
       --xformers \
       ${CLI_ARGS:-}
-  " &>/var/log/a1111.log &
-  echo "[start] WebUI launched (log: /var/log/a1111.log)"
+  " >>/var/log/a1111.log 2>&1 &
+  echo "[start] WebUI launched (log: /var/log/a1111.log, streamed to RunPod console)"
 }
 
 export_env_vars() {
@@ -236,4 +237,8 @@ start_nginx
 export_env_vars
 
 echo "[start] Pod ready — Connect HTTP :3001 (WebUI), Jupyter :8888"
+if [[ "${DISABLE_AUTOLAUNCH:-}" != "1" ]]; then
+  echo "[start] Streaming WebUI log to container stdout (generation progress)..."
+  exec tail -n 200 -F /var/log/a1111.log
+fi
 sleep infinity
