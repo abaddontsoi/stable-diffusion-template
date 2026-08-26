@@ -38,17 +38,49 @@ docker push yourdockerhub/a1111-reactor:latest
 
 Build is heavy (torch + WebUI + InsightFace ~800MB + YOLO detectors).
 
-## RunPod template
+## RunPod template (Connect / internet access)
+
+Match the official `runpod/stable-diffusion` Connect UX:
+
+| Connect label | Container port | What it is |
+| --- | --- | --- |
+| **HTTP Service** | **3001** | nginx → A1111 WebUI (`:3000`) |
+| **Jupyter Lab** | **8888** | Jupyter Lab |
+| SSH | **22** | OpenSSH (when `PUBLIC_KEY` is set by RunPod) |
+
+### Template fields
 
 | Field | Value |
 | --- | --- |
 | Container image | `yourdockerhub/a1111-reactor:latest` |
 | Container disk | ≥ 30 GB (40+ recommended) |
-| Volume | optional → `/workspace` |
-| Expose HTTP | **3000** |
-| Command | `/start.sh` (default) |
+| Volume | optional Network Volume → `/workspace` |
+| Expose HTTP ports | `3001`, `8888` |
+| Expose TCP | `22` (optional; RunPod often maps this for SSH) |
+| Docker command | leave default (`/start.sh`) |
 
-Env: `CLI_ARGS` (extra WebUI flags), `WORKSPACE` (default `/workspace`).
+After deploy, open **Connect** → click **HTTP Service** (3001) for WebUI, or **Jupyter Lab** (8888).
+
+### Env vars
+
+| Variable | Purpose |
+| --- | --- |
+| `CLI_ARGS` | Extra WebUI flags, e.g. `--medvram` |
+| `WORKSPACE` | Persist root (default `/workspace`) |
+| `JUPYTER_PASSWORD` | Optional Jupyter token (empty = no token, RunPod-proxy style) |
+| `DISABLE_JUPYTER` | Set `1` to skip Jupyter |
+| `DISABLE_AUTOLAUNCH` | Set `1` to skip auto-starting WebUI |
+| `PUBLIC_KEY` | Injected by RunPod for SSH |
+
+### Local test (similar port map)
+
+```bash
+docker run --gpus all -p 3000:3001 -p 8888:8888 -p 22:22 \
+  -v "$(pwd)/workspace:/workspace" \
+  yourdockerhub/a1111-reactor:latest
+```
+
+Then open `http://localhost:3000` (maps to container nginx `:3001`).
 
 ## Verify on a pod
 
@@ -72,14 +104,15 @@ cat /stable-diffusion-webui/extensions/sd-webui-reactor/last_device.txt
 
 ```
 Dockerfile
+nginx/nginx.conf            # :3001 → WebUI :3000
 a1111/webui-user.sh
 scripts/
   download_insightface_models.sh
   download_adetailer_models.sh
   verify_insightface.py
   verify_adetailer.py
-  pre_start.sh          # volume links + ultralytics/ORT repair
-  start.sh
+  pre_start.sh              # volume links + ultralytics/ORT repair
+  start.sh                  # nginx + jupyter + webui + sleep infinity
 ```
 
 ## Notes

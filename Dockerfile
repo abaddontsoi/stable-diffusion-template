@@ -16,13 +16,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
     ORT_CUDA12_INDEX=https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/ \
     STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git
 
-# OpenCV / build deps (insightface Cython + mediapipe runtime libs)
+# OpenCV / build deps + RunPod Connect services (nginx proxy, SSH)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git wget curl unzip \
         libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
         libxcb1 libgtk-3-0 \
         build-essential python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+        nginx openssh-server \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/run/sshd /run/nginx
 
 ARG WEBUI_VERSION=v1.10.1
 ARG REACTOR_REPO=https://codeberg.org/Gourieff/sd-webui-reactor.git
@@ -58,7 +60,7 @@ RUN git clone --depth 1 --branch ${WEBUI_VERSION} \
 ENV PIP_CONSTRAINT=/etc/pip-constraints-a1111.txt \
     CLIP_PACKAGE=https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip \
     STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git \
-    INSIGHTFACE_HOME=/home/sduser/.insightface
+    INSIGHTFACE_HOME=/root/.insightface
 
 # --- Extensions: ReActor + ADetailer ---
 RUN cd ${WEBUI_ROOT}/extensions \
@@ -125,14 +127,18 @@ RUN . ${WEBUI_ROOT}/venv/bin/activate \
     && rm /tmp/verify_insightface.py /tmp/verify_adetailer.py
 
 COPY a1111/webui-user.sh ${WEBUI_ROOT}/webui-user.sh
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY --chmod=755 scripts/start.sh /start.sh
 COPY --chmod=755 scripts/pre_start.sh /pre_start.sh
 
-RUN useradd -m -u 1000 sduser && chown -R sduser:sduser ${WEBUI_ROOT} /start.sh /pre_start.sh /usr/local/bin/download_insightface_models.sh /usr/local/bin/download_adetailer_models.sh
-USER sduser
+# Ensure jupyter is available for RunPod Connect :8888
+RUN pip install --no-cache-dir jupyterlab \
+    && mkdir -p /var/log/nginx /workspace \
+    && (rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true)
 
+# Run as root so nginx / ssh / jupyter match RunPod official templates
 WORKDIR ${WEBUI_ROOT}
-EXPOSE 3000
+EXPOSE 22 3000 3001 8888
 
 SHELL ["/bin/bash", "--login", "-c"]
 CMD ["/start.sh"]
