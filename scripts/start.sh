@@ -102,7 +102,6 @@ start_jupyter() {
   fi
 
   mkdir -p "${WORKSPACE}"
-  chown -R "${RUN_USER}:${RUN_USER}" "${WORKSPACE}" 2>/dev/null || true
 
   local token_args=()
   if [[ -n "${JUPYTER_PASSWORD:-}" ]]; then
@@ -217,9 +216,16 @@ export_env_vars() {
   fi
 }
 
+ensure_workspace_perms() {
+  if [[ -d "${WORKSPACE}" ]] && id -u "${RUN_USER}" >/dev/null 2>&1; then
+    chown -R "${RUN_USER}:${RUN_USER}" "${WORKSPACE}" 2>/dev/null || true
+  fi
+}
+
 # --- boot ---
 # Order: prep → SSH/Jupyter → A1111 → wait upstream → nginx (avoid 502 on Connect)
 /pre_start.sh || true
+ensure_workspace_perms
 setup_ssh
 start_jupyter
 start_webui

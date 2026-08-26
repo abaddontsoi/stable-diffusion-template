@@ -7,6 +7,7 @@ Docker template for [RunPod](https://www.runpod.io/) with **AUTOMATIC1111 WebUI*
 | Problem | Fix in this image |
 | --- | --- |
 | Missing `inswapper_128.onnx` | Baked into `models/insightface/` |
+| ReActor face model save fails | Face models → `models/reactor/faces/` (symlinked to `/workspace`); `faces/` created at boot |
 | Missing `buffalo_l` | Baked into `/opt/insightface/models/buffalo_l/` |
 | CPU `onnxruntime` shadows GPU | Only `onnxruntime-gpu==1.17.1` (CUDA 12 index); re-pinned **after** ultralytics |
 | ReActor stuck on CPU | `last_device.txt` → `CUDA`; checked every boot |
@@ -131,6 +132,7 @@ curl -I http://127.0.0.1:3001/   # expect 200/302, not 502
 ps -o user,args -C python | head
 
 ls -lh /stable-diffusion-webui/models/insightface/inswapper_128.onnx
+ls -la /stable-diffusion-webui/models/reactor/faces/   # ReActor .safetensors face models
 ls /opt/insightface/models/buffalo_l/ || ls /root/.insightface/models/buffalo_l/
 ls /stable-diffusion-webui/models/adetailer/
 cat /stable-diffusion-webui/extensions/sd-webui-reactor/last_device.txt
@@ -165,5 +167,5 @@ If deps are badly corrupted: rebuild the image, or (slow) delete `/stable-diffus
 
 - **Install order matters:** ultralytics can pull CPU `onnxruntime`; the image always reinstalls `onnxruntime-gpu` last, and `pre_start.sh` repairs it again on boot.
 - Do not manually `pip install onnxruntime` (CPU). Prefer leaving version pins alone.
-- With a Network Volume, `models/insightface` and `models/adetailer` are seeded then symlinked under `/workspace`.
+- With a Network Volume, `models/insightface`, `models/reactor/faces`, and `models/adetailer` are seeded then symlinked under `/workspace`.
 - Entrypoint runs as root for nginx/SSH, but A1111 (and Jupyter when possible) run as `runpod`.

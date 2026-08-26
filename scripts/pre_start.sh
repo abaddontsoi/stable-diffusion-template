@@ -4,6 +4,7 @@ set -euo pipefail
 
 WEBUI_ROOT="${WEBUI_ROOT:-/stable-diffusion-webui}"
 WORKSPACE="${WORKSPACE:-/workspace}"
+RUN_USER="${RUN_USER:-runpod}"
 VENV="${WEBUI_ROOT}/venv"
 # Never use /workspace/venv — that path is ignored on purpose
 ORT_CUDA12_INDEX="${ORT_CUDA12_INDEX:-https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/}"
@@ -62,6 +63,7 @@ if [[ -d "${WORKSPACE}" ]]; then
     "${WORKSPACE}/models/Stable-diffusion" \
     "${WORKSPACE}/models/Lora" \
     "${WORKSPACE}/models/insightface" \
+    "${WORKSPACE}/models/reactor/faces" \
     "${WORKSPACE}/models/adetailer" \
     "${WORKSPACE}/outputs" \
     "${WORKSPACE}/embeddings"
@@ -87,8 +89,17 @@ if [[ -d "${WORKSPACE}" ]]; then
   link_dir "${WEBUI_ROOT}/models/Stable-diffusion" "${WORKSPACE}/models/Stable-diffusion"
   link_dir "${WEBUI_ROOT}/models/Lora" "${WORKSPACE}/models/Lora"
   link_dir "${WEBUI_ROOT}/models/insightface" "${WORKSPACE}/models/insightface"
+  link_dir "${WEBUI_ROOT}/models/reactor" "${WORKSPACE}/models/reactor"
   link_dir "${WEBUI_ROOT}/models/adetailer" "${WORKSPACE}/models/adetailer"
   link_dir "${WEBUI_ROOT}/outputs" "${WORKSPACE}/outputs"
+
+  # pre_start runs as root; WebUI (runpod) must write face models + volume assets
+  if id -u "${RUN_USER}" >/dev/null 2>&1; then
+    chown -R "${RUN_USER}:${RUN_USER}" "${WORKSPACE}" 2>/dev/null || true
+  fi
+else
+  # No network volume — still ensure ReActor face-model dir exists (reactor_globals skips faces/ if reactor/ exists)
+  mkdir -p "${WEBUI_ROOT}/models/reactor/faces"
 fi
 
 # Re-download assets if wiped (support legacy /root/.insightface path)
