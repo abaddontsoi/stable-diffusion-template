@@ -13,6 +13,26 @@ export PIP_CONSTRAINT="${PIP_CONSTRAINT:-/etc/pip-constraints-a1111.txt}"
 export PIP_NO_BUILD_ISOLATION="${PIP_NO_BUILD_ISOLATION:-1}"
 export PIP_USE_PEP517="${PIP_USE_PEP517:-0}"
 export RUN_USER="${RUN_USER:-runpod}"
+# Default matches Dockerfile; start_webui may force 0 if hf_transfer is missing
+export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-1}"
+
+ensure_hf_transfer() {
+  local py="${WEBUI_ROOT}/venv/bin/python"
+  if [[ "${HF_HUB_ENABLE_HF_TRANSFER}" != "1" ]]; then
+    return 0
+  fi
+  if [[ -x "${py}" ]] && "${py}" -c "import hf_transfer" >/dev/null 2>&1; then
+    echo "[start] hf_transfer available — HF_HUB_ENABLE_HF_TRANSFER=1"
+    return 0
+  fi
+  if [[ -x "${py}" ]] && "${py}" -m pip install -U hf_transfer >/dev/null 2>&1 \
+    && "${py}" -c "import hf_transfer" >/dev/null 2>&1; then
+    echo "[start] installed hf_transfer into A1111 venv"
+    return 0
+  fi
+  echo "[start] hf_transfer missing — disabling HF_HUB_ENABLE_HF_TRANSFER (fallback to default HF downloads)"
+  export HF_HUB_ENABLE_HF_TRANSFER=0
+}
 
 wait_for_upstream() {
   local host="${1:-127.0.0.1}"
@@ -145,6 +165,7 @@ start_webui() {
   fi
 
   echo "[start] Launching A1111 WebUI on :3000 as ${RUN_USER}..."
+  ensure_hf_transfer
   cd "${WEBUI_ROOT}"
   chmod +x webui.sh || true
   chown -R "${RUN_USER}:${RUN_USER}" "${WEBUI_ROOT}" "${INSIGHTFACE_HOME}" 2>/dev/null || true
@@ -172,6 +193,7 @@ start_webui() {
     export STABLE_DIFFUSION_REPO='${STABLE_DIFFUSION_REPO}'
     export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD='${TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD}'
     export INSIGHTFACE_HOME='${INSIGHTFACE_HOME}'
+    export HF_HUB_ENABLE_HF_TRANSFER='${HF_HUB_ENABLE_HF_TRANSFER}'
     exec bash webui.sh \
       --listen \
       --port 3000 \

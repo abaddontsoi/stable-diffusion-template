@@ -17,6 +17,7 @@ Docker template for [RunPod](https://www.runpod.io/) with **AUTOMATIC1111 WebUI*
 | A1111 aborts as root | Entrypoint drops to user `runpod` via `gosu` before `webui.sh` |
 | Connect stuck / `:3001` → 502 | Start A1111 first, wait for `:3000`, then start nginx |
 | Broken shared `/workspace/venv` | Venv is always `/stable-diffusion-webui/venv` (never `/workspace/venv`) |
+| `HF_HUB_ENABLE_HF_TRANSFER=1` but no `hf_transfer` | Install `hf_transfer` in A1111 venv; `start.sh` falls back to `HF_HUB_ENABLE_HF_TRANSFER=0` if missing |
 | `Couldn't clone Stable Diffusion` (Stability-AI private) | `STABLE_DIFFUSION_REPO=https://github.com/w-e-w/stablediffusion.git` |
 | ORT `_ARRAY_API not found` | Pin `numpy==1.26.4` (ultralytics often pulls numpy 2.x) |
 | `ResolutionImpossible` numpy 1.26.2 vs constraint 1.26.4 | Rewrite A1111 `requirements_versions.txt` pin to `1.26.4` before `pip install` |

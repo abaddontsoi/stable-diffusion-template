@@ -24,6 +24,7 @@ Template must boot on Runpod with no manual steps. Runtime is **root** by defaul
    Optional: `PIP_NO_BUILD_ISOLATION=1` `PIP_USE_PEP517=0` before `launch.py`.
 5. **Bind** — `--listen --port 3000`.
 6. **nginx after upstream** — start A1111 first; poll TCP/`curl` on `:3000`; then nginx `:3001`. Avoid 502 while Runpod waits.
+7. **`HF_HUB_ENABLE_HF_TRANSFER=1`** — requires `hf_transfer` in `$WEBUI_ROOT/venv`. Install at image build + soft-heal in `pre_start`/`start.sh`. If still missing, set `HF_HUB_ENABLE_HF_TRANSFER=0` before launching A1111 (never leave the flag on without the package).
 
 ## Failure modes (do not reintroduce)
 
@@ -33,6 +34,7 @@ Template must boot on Runpod with no manual steps. Runtime is **root** by defaul
 | `must not be launched as root` | WebUI started as root |
 | `No module named pip` / `packaging` | broken/shared `/workspace/venv` or missing bootstrap |
 | `No module named pkg_resources` / `Couldn't install clip` | PEP517 isolated build missing setuptools |
+| HF Hub errors about `hf_transfer` | `HF_HUB_ENABLE_HF_TRANSFER=1` without package in A1111 venv |
 
 ## Docs
 

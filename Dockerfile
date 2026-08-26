@@ -59,9 +59,10 @@ RUN git clone --depth 1 --branch ${WEBUI_VERSION} \
     && pip install -r requirements_versions.txt \
     && pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu124 \
     && pip install --no-build-isolation --no-use-pep517 "${CLIP_PACKAGE}" \
-    && python -c "import pkg_resources, clip; print('clip+pkg_resources OK')" \
+    && pip install -U hf_transfer \
+    && python -c "import pkg_resources, clip, hf_transfer; print('clip+pkg_resources+hf_transfer OK')" \
     && python launch.py --skip-torch-cuda-test --skip-python-version-check --exit \
-    && python -c "import pkg_resources, clip; print('clip still OK after launch.py')" \
+    && python -c "import pkg_resources, clip, hf_transfer; print('deps still OK after launch.py')" \
     && pip cache purge
 
 ENV PIP_CONSTRAINT=/etc/pip-constraints-a1111.txt \

@@ -36,7 +36,20 @@ heal_clip_stack() {
     "${py}" -m pip install --no-build-isolation --no-use-pep517 "${CLIP_PACKAGE}"
   fi
 
+  # HF_HUB_ENABLE_HF_TRANSFER=1 requires hf_transfer in the A1111 venv
+  if ! "${py}" -c "import hf_transfer" >/dev/null 2>&1; then
+    echo "[pre_start] hf_transfer missing — installing..."
+    if ! "${py}" -m pip install -U hf_transfer; then
+      echo "[pre_start] hf_transfer install failed — will disable HF transfer in start.sh" >&2
+    fi
+  fi
+
   "${py}" -c "import pkg_resources, clip, packaging; print('[pre_start] clip/pkg_resources/packaging OK')"
+  if "${py}" -c "import hf_transfer" >/dev/null 2>&1; then
+    echo "[pre_start] hf_transfer OK"
+  else
+    echo "[pre_start] hf_transfer still missing"
+  fi
 }
 
 heal_clip_stack
