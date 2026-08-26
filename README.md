@@ -31,12 +31,36 @@ Docker template for [RunPod](https://www.runpod.io/) with **AUTOMATIC1111 WebUI*
 
 ## Build
 
+RunPod requires a **`linux/amd64`** image. Building on Apple Silicon without `--platform` pushes **arm64 only**, and template create fails with:
+
+> has no linux/amd64 manifest
+
 ```bash
-docker build -t yourdockerhub/a1111-reactor:latest .
-docker push yourdockerhub/a1111-reactor:latest
+# Recommended (build + push amd64 in one step)
+./scripts/build-and-push.sh
+# or:
+IMAGE=abaddonmybeauty/a1111-reactor:latest ./scripts/build-and-push.sh
 ```
 
-Build is heavy (torch + WebUI + InsightFace ~800MB + YOLO detectors).
+Equivalent manual command:
+
+```bash
+docker buildx build \
+  --platform linux/amd64 \
+  -t abaddonmybeauty/a1111-reactor:latest \
+  --push \
+  .
+```
+
+Verify the registry has amd64:
+
+```bash
+docker buildx imagetools inspect abaddonmybeauty/a1111-reactor:latest
+```
+
+You should see `Platform: linux/amd64`. Then create the RunPod template again.
+
+Build is heavy (torch + WebUI + InsightFace ~800MB + YOLO; cross-building amd64 on Mac is slower).
 
 ## RunPod template (Connect / internet access)
 
